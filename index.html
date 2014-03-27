@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<link href='http://fonts.googleapis.com/css?family=PT+Sans' rel='stylesheet' type='text/css'>
+	<title>Tax Particles</title>
+	<script type = "application/javascript" src = "dvc.ajax.js"></script> 	
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-22411826-2']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.a
+sync = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://w
+ww') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefor
+e(ga, s);  })();
+
+</script>
+
+
+
+	<script type = "application/javascript"> 
+
+
+	// 
+	// Global variable definitions
+	// 
+
+	// Starting parameters
+	var params = {
+		year: 2010,     // 1984 - 2015
+		type: 0,        // 0 - 3
+		sortdir: false,
+		income: 50000,
+		filing: 0,      // 0 - 4
+		selfEmployed: 0, // 0 - 1
+		group: ["agency", "bureau", "function", "subfunction"],
+		showChange: false,
+		showExtra: false
+	};
+	var WIDTH = 950;
+	var HEIGHT = 700;
+	var NUM_PARTICLES = 650;
+	var DOLLARS_PER_PARTICLE = 20;
+	var PARTICLE_SIZE =16;
+	var PARTICLE_SCALE = 1;
+	//var MAX_ATTRACTORS = 20;
+	var MAX_INIT_VELOCITY = 10;
+	var BOUNCE_DAMPING = 0.5;
+	var MAX_FPS = 30;
+	var MAX_RING_SPEED = 10; 				// in degrees/frame
+	var RING_RADIUS_START = 10;
+	var RING_SPEED_FRICTION = 0.001;
+	var RING_RADIUS_INCREMENT = 8;
+	var RING_ATTRACTION_FORCE = 0.1;		// force at which particles are attracted to destination in rings
+	var FREE_PARTICLE_MOVEMENT_FORCE = 1; 
+	var FRICTION = 0.1; 					// proportion of velocity that particles lose each frame
+	var SNAP_THRESHOLD = 8;					// if particles are within this distance of destination, they'll just snap to destination
+	var RING_COUNTS = [16,24,32,40,48,56,64,72,80,88,96,104,112,120,128,136,10000];
+	var OPAQUE_WHITE = 'rgba(255,255,255,1)';
+	var TRANSPARENT_BLACK = 'rgba(0,0,0,0)';
+	//var TRAIL_SCALE = 20;					// scale velocity by this much to get trail length
+	//var TRAIL_WIDTH = 3;					// width of trails in pixels
+	var FRAME_CLEAR_STYLE = 'fade';			// 'clear', 'fade', or 'none', whether to clear every frame or fade
+	var FRAME_CLEAR_FADE_OPACITY = 0.15;		// opacity of transparent fillRect, 0.004 seems to be minimum value
+	var UPDATE_CLEAR_STYLE= 'none';			// 'clear', 'fade', or 'none', whether to clear frame or fade every time data changes
+	var UPDATE_CLEAR_FADE_OPACITY = 0.1;	// opacity of transparent fillRect on update if 'fade' is selected
+	var UNHIGHLIGHTED_FADE_OPACITY = 0.9;	// opacity of darkness applied to unhighlighted parts of the canvas when an attractor is moused over
+	var ATTRACTOR_ICONS_AND_TEXT = false;	// whether to draw attractor icons and text
+	var ATTRACTOR_CIRCLES = true;			// whether to draw circles showing how much area each attractor should occupy
+	var ATTRACTOR_CIRCLES_SCALE = 200;		// amount to scale each attractor's circle by
+	var ATTRACTOR_MOTION_STYLE = 'point';	// 'ring', 'point', how to animate particles at attractors
+	var ATTRACTOR_FORCE = 50;				// force of attractors, scaled by how many particles it has
+	var ATTRACTOR_FORCE_INVERSE_SQUARE = true; // whether to use inverse square law to calculate attractor force
+	var ATTRACTOR_FORCE_INVERSE_SQUARE_MIN = 0.5; // min force to use on particles when they're not in the radius
+	var ATTRACTOR_FORCE_INVERSE_SQUARE_MAX = 1;  // max force to use on particles inside radius, scaled by number of particles attractor has
+	var ATTRACTOR_FORCE_INVERSE_SQUARE_NULL_RADIUS = 0;	// proportion of radius around Attractors to not apply attraction force
+	var INVERSE_SQUARE_MAGNITUDE_MAX = 1000;	// max amount that 1/distance^2 can be
+	var ATTRACTOR_REPULSION_MAX = 0; 		// max force at which particles are repelled from attractors if they're in radius; doesn't apply if they're not within desired radius
+	var SPRITE_GRADIENT_STOP_1 = 0.05;		// radius at which to make the first color stop (out of 1)
+	var SPRITE_GRADIENT_STOP_2 = 0.1;		// radius to make the second color stop
+	var ATTRACTOR_RADIUS_FRICTION_FREE = false; // whether to make radius inside attractors friction-free
+	var MIN_FRICTIONED_VELOCITY = 2;
+	var ATTRACTOR_LEGEND = true;
+	var HIGHLIGHT_GRADIENT_RADIUS = 100;	// when attractors are highlighted, how much bigger the gradient around them is
+	var FREE_PARTICLE_CENTER_RADIUS = 50;	// radius at the center of the screen for free particles to gather at
+	
+	var canvas, context;
+	var attractorsArray = [];
+	var freeParticlesArray = [];
+	var freeParticleSprite;
+	var freeParticleOriginVector = new Vector(350,0);
+	var totalDesiredParticles;
+	var totalOwnedParticles;
+	var highlightedAttractor = 'none';
+
+	
+	var CENTER_X = Math.floor(WIDTH/2);
+	var CENTER_Y = Math.floor(HEIGHT/2);
+	
+	// Associative array of budget areas and their names, icons, and starting locations
+	var attractorInfo = {
+	'National Defense': 									{'icon': 'defense_icon.png',		'positionVector': vectorFromPolar(0,	WIDTH/4.8)},
+	'Net Interest': 										{'icon': 'income_icon.jpg',			'positionVector': vectorFromPolar(60,	WIDTH/4.8)},
+	'Income Security': 										{'icon': 'income_icon.jpg',			'positionVector': vectorFromPolar(120,	WIDTH/4.8)},
+	'Social Security': 										{'icon': 'socialsecurity_icon.gif',	'positionVector': vectorFromPolar(180,	WIDTH/4.8)},
+	'Medicare':											 	{'icon': 'medicare_icon.jpg',		'positionVector': vectorFromPolar(240,	WIDTH/4.8)},
+	'Health': 												{'icon': 'health_icon.gif',			'positionVector': vectorFromPolar(300,	WIDTH/4.8)},
+	'General Science, Space, and Technology':				{'icon': 'nasa.png',				'positionVector': vectorFromPolar(270,	WIDTH/3.1)},
+	'Allowances':											{'icon': 'income_icon.jpg',			'positionVector': vectorFromPolar(90,	WIDTH/3.1)},
+	'International Affairs':								{'icon': 'un_icon.jpg',				'positionVector': vectorFromPolar(30,	WIDTH/2.9)},
+	'Transportation': 										{'icon': 'bus_icon.png',			'positionVector': vectorFromPolar(150,	WIDTH/2.9)},
+	'Education, Training, Employment, and Social Services':	{'icon': 'book_icon.png',			'positionVector': vectorFromPolar(210,	WIDTH/2.9)},
+	'Veterans Benefits and Services': 						{'icon': 'veteran_icon.jpg',		'positionVector': vectorFromPolar(330,	WIDTH/2.9)},
+	'Commerce and Housing Credit': 							{'icon': 'housing_icon.gif',		'positionVector': vectorFromPolar(45,	WIDTH/2.5)},
+	'Community and Regional Development': 					{'icon': 'community-icon.jpg',		'positionVector': vectorFromPolar(135,	WIDTH/2.5)},
+	'Energy': 												{'icon': 'Energy Icon.jpg',			'positionVector': vectorFromPolar(225,	WIDTH/2.5)},
+	'General Government': 									{'icon': 'government.jpg',			'positionVector': vectorFromPolar(315,	WIDTH/2.5)},
+	'Undistributed Offsetting Receipts':					{'icon': 'income_icon.jpg',			'positionVector': vectorFromPolar(15,	WIDTH/2.2)},
+	'Administration of Justice':							{'icon': 'justice_icon.jpg',		'positionVector': vectorFromPolar(345,	WIDTH/2.2)},
+	'Agriculture': 											{'icon': 'agriculture.gif',			'positionVector': vectorFromPolar(165,	WIDTH/2.2)},
+	'Natural Resources and Environment': 					{'icon': 'tree_icon.jpg',			'positionVector': vectorFromPolar(195,	WIDTH/2.2)},
+	};
+	
+	var colorTable = [
+	/*
+	// pastels
+	'0xf29b76',
+	//'0xfff799',
+	'0x89c997',
+	'0x8c97cb',
+	'0xa088ba',
+	'0xf19ec2',
+	'0x88abda',
+	//'0xfacd89',
+	'0xcce198',
+	'0x7ecef4',
+	*/
+	'0xf29c9f',
+	//'0xacd598',
+	'0xf6b37f',
+	// brights
+	'0xec6941',
+	'0xf8b551',
+	'0xf19149',
+	'0xfff45c', //
+	'0xb3d465',
+	'0x80c269',
+	'0x32b16c',
+	//'0x13b5b1',
+	'0x84ccc9',
+	'0x50f7ff',
+	//'0x00b7ee',
+	'0x448aca',
+	'0x556fb5',
+	'0x5f52a0',
+	'0x8957a1',
+	'0xae5da1',
+	'0xea68a2',
+	'0xeb6877',
+	'0x8f82bc',
+	'0xc490bf',
+	];
+	
+	var colorTable2 = [
+	'0xD657FF',
+	'0x8C6FFF',
+	'0xFFD640',
+	'0xFFB958',
+	'0xE8A553',
+	'0xE88969',
+	'0xE85385',
+	'0xD069E8',
+	'0xFF8A68',
+	'0xFF809E',
+	'0xD1FF76',
+	'0xFFF870',
+	'0x5F6DFF',
+	'0x59A7FF',
+	'0x6FC1E8',
+	'0x6AE8E0',
+	'0x6FE87A',
+	'0x9CE86A',
+	'0x87FFDE',
+	'0x81FFA8'
+	];
+	
+	// Returns a position vector corresponding to input polar coordinates relative to the center of the canvas. Accepts angles in degrees.
+	function vectorFromPolar(angle, radius) {
+		var x = Math.cos(angle/360*2*Math.PI)*radius+CENTER_X;
+		var y = Math.sin(angle/360*2*Math.PI)*radius+CENTER_Y;
+		return new Vector(x,y);
+	}	
+		
+	//
+	// Object definitions
+	//
+
+	// Attractor objects exert forces on Particles. They start with 0 Particles and a target number of desired Particles.
+	// If they have less than their desired number of Particles, they acquire new ones. If they have more than their desired number, they lose some.
+	// Attractors also keep track of the positions of their rotating rings and how fast their rings are spinning.
+	function Attractor(x,y,desiredParticles,particleSprite) {
+		this.positionVector = new Vector(x,y);
+		this.desiredParticles = desiredParticles;
+		this.currentParticlesArray = [];
+		this.ringSpeedsArray = [];
+		this.ringRotationsArray = [];
+		this.name = '';
+		this.particleSprite = particleSprite;
+		this.icon;		
+		this.color1;
+		this.color2;
+		this.radius = function() {
+			return Math.sqrt(this.currentParticlesArray.length*ATTRACTOR_CIRCLES_SCALE/Math.PI); // scale number of particles, then solve for radius from area
+		};
+		this.functionId;
+		this.functionMyCost;
+	}
+	
+	// Particle objects remember their locations and velocities. They can be associated with zero or one Attractors at a time, depending on whether they're in the freeParticlesArray or an Attractor's currentParticlesArray.
+	function Particle() {
+		this.positionVector = freeParticleOriginVector;
+		this.velocityVector = new Vector(0,0);
+		this.persistentRandom = Math.random();
+		this.persistentRandom2 = Math.random();
+		this.newlyGenerated = true;
+	}
+	
+	// Vector object for storing positions and velocities
+	function Vector(x,y) {
+		this.x = x;
+		this.y = y;
+		this.add = function(addVector) {
+			return new Vector(this.x+addVector.x,this.y+addVector.y);
+		}
+		this.subtract = function(subtractVector) {
+			return new Vector(this.x-subtractVector.x,this.y-subtractVector.y);
+		}
+		this.normalize = function() {
+			magnitude = Math.sqrt(this.x*this.x+this.y*this.y)
+			return new Vector(this.x/magnitude,this.y/magnitude);			
+		}
+		this.times = function(scaleFactor) {
+			return new Vector(this.x*scaleFactor,this.y*scaleFactor);
+		}
+		this.magnitude = function() {
+			return Math.sqrt(this.x*this.x+this.y*this.y);
+		}
+	}
+	
+	//
+	// Function definitions
+	// 
+	
+	// Init is run once when page is loaded
+	function init() {
+	
+		// Use other color table
+		colorTable=colorTable2;
+	
+		// Shuffle color table
+		shuffle(colorTable);
+	
+		// Set the starting parameters
+		getData();		
+
+		// Get a 2D context from the canvas element
+		canvas = document.getElementById('theCanvas');
+		if (canvas.getContext){
+			context = canvas.getContext('2d');
+		} else {
+			alert("Your browser doesn't support the canvas element!");
+		}
+		canvas.setAttribute('width',WIDTH);
+		canvas.setAttribute('height',HEIGHT);
+		
+		// Make some Particles with random starting locations and add them to the list of free Particles
+		for (i = 0;i < NUM_PARTICLES;i++) {
+			particle = new Particle();
+			freeParticlesArray.push(particle);
+		}
+		
+		// Generate free particle sprite
+		freeParticleSprite = generateSprite(OPAQUE_WHITE,'rgba(64,64,64,1)','rgba(32,32,32,1)',TRANSPARENT_BLACK);
+		
+		setInterval(loop, 1000/MAX_FPS);
+	}
+	
+	// Draws a new frame, run at an interval specified by MAX_FPS
+	var loopRunning = false;
+	function loop() {
+
+		// Clear canvas
+		// Highlight attractor if mouse is over one
+		context.save();
+		context.globalCompositeOperation='source-over';
+		if (FRAME_CLEAR_STYLE == 'clear') {
+			context.clearRect(0,0,canvas.width,canvas.height);
+		} else if (FRAME_CLEAR_STYLE == 'fade') {
+			if (highlightedAttractor=='none') {
+				var fadeOpacity = FRAME_CLEAR_FADE_OPACITY;
+				context.fillStyle='rgba(0,0,0,'+fadeOpacity+')';
+				context.fillRect(0,0,canvas.width,canvas.height);			
+			} else {
+				highlightAttractor();
+			}
+		}
+
+		context.globalCompositeOperation='lighter'; // Draw particles using additive blending for that cool glowing effect
+		
+		// Iterate through all Attractors, adding and removing particles as needed, and draw their Particles
+		// Keep track of total number of particles owned by all Attractors
+		
+		// Shuffle attractors array so that they're iterated in a random order each time
+		var shuffledAttractorsArray = attractorsArray.slice();
+		shuffle(shuffledAttractorsArray);
+		shuffledAttractorsArray.forEach(drawAttractorParticles);
+		
+		// Draw Attractor icons, text, and circles
+		drawAttractors(); 
+		
+		// Calculate total number of owned and desired particles
+		totalOwnedParticles=0;
+		var totalDesiredParticles=0;
+		attractorsArray.forEach(function(attractor){
+			totalOwnedParticles+=attractor.currentParticlesArray.length;
+			totalDesiredParticles+=attractor.desiredParticles;
+		});		
+		var excessParticles = totalOwnedParticles + freeParticlesArray.length - totalDesiredParticles;
+
+		// If more particles are needed, make more free particles
+		if (excessParticles < 0) {
+			// Make 10 at a time if needed
+			if (excessParticles < -10) {
+				for (var i=0;i<10;i++) {
+					freeParticlesArray.push(new Particle);
+				}
+			} else {
+				freeParticlesArray.push(new Particle);
+			}			
+		} else if (excessParticles > 0 && freeParticlesArray.length > 0) {
+			// If there are excess free particles and the oldest one is close enough to the freeParticleOriginVector, remove the one that's been free the longest
+			// Remove 10 at a time if needed
+			if (freeParticlesArray[0].positionVector.subtract(freeParticleOriginVector).magnitude() < 10) {
+				if (freeParticlesArray.length>10 && excessParticles > 10) {
+					for (var i=0;i<10;i++) {
+						freeParticlesArray.shift();	
+					}
+				} else {
+					freeParticlesArray.shift();	
+				}
+			}
+		}
+		
+		// Update counts because totals might have changed
+		excessParticles = totalOwnedParticles + freeParticlesArray.length - totalDesiredParticles;
+		
+		// Move and draw free particles if there are any
+		if (freeParticlesArray.length > 0) {
+		
+			// If there are more (or equal) owned particles than desired particles, then all free particles are excess			
+			if (totalOwnedParticles >= totalDesiredParticles) {
+				for (var i = 0; i < freeParticlesArray.length; i++) {
+					particle = freeParticlesArray[i];
+					if (!particle) {
+						alert('Invalid particle (A): '+i);
+					}
+					// Move them towards the generation point to be deleted
+					moveParticle(particle,freeParticleOriginVector,FREE_PARTICLE_MOVEMENT_FORCE);	
+					drawParticle(particle,freeParticleSprite,'rgba(64,64,64,1)','rgba(32,32,32,1)');
+				}
+			} else {
+				// If there are less owned particles than desired particles, then some free particles should be grabbed soon, and some (or none) are excess
+				maxNeededFreeParticles = totalDesiredParticles-totalOwnedParticles;
+
+				// Move oldest particles towards the center since they're most likely to be grabbed by attractors
+				for (var i = 0; i < freeParticlesArray.length && i < maxNeededFreeParticles; i++) {
+					particle = freeParticlesArray[i];
+					if (!particle) {
+						alert('Invalid particle (B): '+i);
+					}
+					// If particle is close enough to the center of the screen, make it available to grab
+					if (isCloseToCenter(particle)) {
+						particle.newlyGenerated=false;
+					}
+					
+					//moveParticle(particle,randomPositionVector(),FREE_PARTICLE_MOVEMENT_FORCE);			
+					moveParticle(particle,randomCenterPositionVector(particle),FREE_PARTICLE_MOVEMENT_FORCE);			
+					drawParticle(particle,freeParticleSprite,'rgba(64,64,64,1)','rgba(32,32,32,1)');
+				}
+				
+				// If there are excess free particles, move those towards generation point for deletion
+				if (freeParticlesArray.length > maxNeededFreeParticles) {
+					for (var i = maxNeededFreeParticles; i < freeParticlesArray.length; i++) {
+						particle = freeParticlesArray[i];
+						if (!particle) {
+							alert('Invalid particle (C): '+i);
+						}
+						// Move them towards the generation point to be deleted
+						moveParticle(particle,freeParticleOriginVector,FREE_PARTICLE_MOVEMENT_FORCE);	
+						drawParticle(particle,freeParticleSprite,'rgba(64,64,64,1)','rgba(32,32,32,1)');
+					}
+				}
+			}
+		}
+		updateCounts();
+		context.restore();
+		//loopRunning = false;
+	}
+		
+	// Return a position vector near the center of the screen, offset by an amount determined by the particle's persistent random value
+	function randomCenterPositionVector(particle) {
+		return vectorFromPolar(360*particle.persistentRandom,FREE_PARTICLE_CENTER_RADIUS*particle.persistentRandom2);
+	}
+	
+	function isCloseToCenter(particle) {
+		return (particle.positionVector.subtract(centerPositionVector()).magnitude() < 100);
+	}
+		
+	// Move particle towards destination vector at a certain acceleration
+	function moveParticle(particle, destinationVector, acceleration) {
+		// Calculate acceleration vector
+		accelerationVector = destinationVector.subtract(particle.positionVector);
+		//inverseSquareMagnitude = 1/(accelerationVector.magnitude()*accelerationVector.magnitude());
+		if (accelerationVector.magnitude() > 0) {
+			normalizedAcceleration = accelerationVector.normalize();
+			//scaledAcceleration = normalizedAcceleration.times(ACCELERATION*inverseSquareMagnitude);
+			scaledAcceleration = normalizedAcceleration.times(acceleration);
+	//		if (scaledAcceleration > MAX_ACCELERATION) {
+				//scaledAcceleration = MAX_ACCELERATION;
+	//		}
+		} else {
+			scaledAcceleration = new Vector(0,0);
+		}
+		
+		// Change particle's velocity by acceleration vector
+		particle.velocityVector = particle.velocityVector.add(scaledAcceleration);
+		
+		// Calculate particle's tentative new position using velocity vector
+		newPositionVector = particle.positionVector.add(particle.velocityVector);
+		// Check if new position would be outside of viewport; if so, reflect the offending component for velocity vector
+		if (newPositionVector.x < 0 || newPositionVector.x > WIDTH) {
+			particle.velocityVector.x = -particle.velocityVector.x * (1-BOUNCE_DAMPING);			
+		}
+		if (newPositionVector.y < 0 || newPositionVector.y > HEIGHT) {
+			particle.velocityVector.y = -particle.velocityVector.y * (1-BOUNCE_DAMPING);
+		}
+		// Apply friction to velocity
+		if (particle.velocityVector.magnitude() > MIN_FRICTIONED_VELOCITY) {
+			particle.velocityVector = particle.velocityVector.times(1-FRICTION);
+		}
+		
+		// Update particle's position for real
+		particle.positionVector = particle.positionVector.add(particle.velocityVector);
+	}
+	
+		// Move particle towards destination vector at a certain acceleration
+	function moveParticleNoFriction(particle, destinationVector, acceleration) {
+		// Calculate acceleration vector
+		accelerationVector = destinationVector.subtract(particle.positionVector);
+		//inverseSquareMagnitude = 1/(accelerationVector.magnitude()*accelerationVector.magnitude());
+		if (accelerationVector.magnitude() > 0) {
+			normalizedAcceleration = accelerationVector.normalize();
+			//scaledAcceleration = normalizedAcceleration.times(ACCELERATION*inverseSquareMagnitude);
+			scaledAcceleration = normalizedAcceleration.times(acceleration);
+	//		if (scaledAcceleration > MAX_ACCELERATION) {
+				//scaledAcceleration = MAX_ACCELERATION;
+	//		}
+		} else {
+			scaledAcceleration = new Vector(0,0);
+		}
+		
+		// Change particle's velocity by acceleration vector
+		particle.velocityVector = particle.velocityVector.add(scaledAcceleration);
+		
+		// Calculate particle's tentative new position using velocity vector
+		newPositionVector = particle.positionVector.add(particle.velocityVector);
+		// Check if new position would be outside of viewport; if so, reflect the offending component for velocity vector
+		if (newPositionVector.x < 0 || newPositionVector.x > WIDTH) {
+			particle.velocityVector.x = -particle.velocityVector.x * (1-BOUNCE_DAMPING);			
+		}
+		if (newPositionVector.y < 0 || newPositionVector.y > HEIGHT) {
+			particle.velocityVector.y = -particle.velocityVector.y * (1-BOUNCE_DAMPING);
+		}
+		
+		// Update particle's position for real
+		particle.positionVector = particle.positionVector.add(particle.velocityVector);
+	}
+	
+	function drawParticle(particle,particleSprite,color2,color3) {
+		context.drawImage(particleSprite,Math.floor(particle.positionVector.x-PARTICLE_SIZE/2), Math.floor(particle.positionVector.y-PARTICLE_SIZE/2),PARTICLE_SIZE,PARTICLE_SIZE); // integer coordinates are supposed to be faster for drawImage
+	}
+	
+	// Random velocity vector
+	function randomVelocityVector() {
+		return new Vector(Math.random()*MAX_INIT_VELOCITY,Math.random()*MAX_INIT_VELOCITY);
+	}
+	
+	// Random position vector
+	function randomPositionVector() {
+		return new Vector(Math.random()*WIDTH,Math.random()*HEIGHT);
+	}
+	
+	function centerPositionVector() {
+		return new Vector(CENTER_X,CENTER_Y);
+	}
+	
+	function addAttractorDesire(attractorIndex,num) {
+		attractorsArray[attractorIndex].desiredParticles+=num;
+	}
+	
+	function subtractAttractorDesire(attractorIndex,num) {
+		attractorsArray[attractorIndex].desiredParticles-=num;
+		if (attractorsArray[attractorIndex].desiredParticles<=0) {
+		attractorsArray[attractorIndex].desiredParticles=0;
+		}
+	}
+	
+	var unusedColorIndex = 0;
+	function generateAttractor(name) {
+		// assign a color to it from the color tables
+		if (unusedColorIndex < colorTable.length) {
+			brightColorString = colorTable[unusedColorIndex];
+			unusedColorIndex++;
+		} else {
+			// if no more unused colors, just give it a random one
+			brightColorString = colorTable[Math.floor(Math.random()*colorTable.length)];
+		}
+		//brightColorDec = parseInt(brightColorString);
+		brightColorDec = Math.floor(parseInt(brightColorString));
+		brightColor = brightColorDec.toString(16);
+		if (brightColor.length < 6) {
+			for (var i = brightColor.length; i < 6; i++) {
+				brightColor = '0'+brightColor;
+			}
+			//alert(brightColor);
+		}
+		darkColor = darkenColor(brightColor,2);
+		brightColor = '#'+brightColor;
+		
+		sprite = generateSprite('rgba(255,255,255,0.3)',brightColor,darkColor,TRANSPARENT_BLACK);
+		attractor = new Attractor(Math.random()*WIDTH,Math.random()*HEIGHT,0,sprite);
+		attractor.color1=brightColor;
+		attractor.color2=darkColor;
+		/*
+		randomR = Math.floor(Math.random()*127);
+		randomG = Math.floor(Math.random()*(127-randomR));
+		randomB = Math.floor(Math.random()*(127-randomR-randomG));
+		randomColor1 = 'rgba('+randomR+','+randomG+','+randomB+',1)';
+		randomColor2 = 'rgba('+Math.floor(randomR/2)+','+Math.floor(randomG/2)+','+Math.floor(randomB/2)+',1)';
+		sprite = generateSprite('rgba(255,255,255,0.3)',randomColor1,randomColor2,TRANSPARENT_BLACK);
+		attractor = new Attractor(Math.random()*WIDTH,Math.random()*HEIGHT,0,sprite);
+		attractor.color1=randomColor1;
+		attractor.color2=randomColor2;
+		*/
+		if (attractorInfo[name]) { // If we have info matching this budget area's name, assign the icon to it
+			var img = new Image();   // Create new Image object
+			img.src = attractorInfo[name]['icon'];
+			attractor.icon = img;
+			attractor.positionVector = attractorInfo[name].positionVector; // Place Attractor at predetermined location
+		}
+		attractor.name = name;
+		attractorsArray.push(attractor);
+		return attractor;
+	}
+	
+	// Accepts a color string in '#ffffff' format with or without prefixes and divides each channel by the second argument independently
+	// Returns in '#ffffff' format
+	function darkenColor(colorString, divisor) {
+		if (colorString[0] === '#') {
+			colorString = colorString.slice(1,7);
+		}		
+		red = Math.floor(parseInt(colorString.slice(0,2), 16)/divisor).toString(16);
+		for (var i = red.length; i < 2; i++) {
+			red = '0'+red;
+		}
+		green = Math.floor(parseInt(colorString.slice(2,4), 16)/divisor).toString(16);
+		for (var i = green.length; i < 2; i++) {
+			green = '0'+green;
+		}
+		blue = Math.floor(parseInt(colorString.slice(4,6), 16)/divisor).toString(16);
+		for (var i = blue.length; i < 2; i++) {
+			blue = '0'+blue;
+		}
+		//alert(colorString+'-->'+red+green+blue);
+		return '#'+red+green+blue;
+	}
+	
+	// Update Attractor's owned Particles based on desire, draw all particles belonging to this Attractor, and draw icons representing the Attractor
+	function drawAttractorParticles(attractor) {
+	
+		// Update Attractor's list of particles based on desire			
+		if (attractor.currentParticlesArray.length < attractor.desiredParticles) {
+		// If Attractor has less than desired number of Particles and there's a free one, gain the oldest free Particle that wasn't newly generated
+			if (freeParticlesArray.length > 0) {
+				var i = 0;
+				while (i < freeParticlesArray.length && freeParticlesArray[i].newlyGenerated) {
+					i++;
+				}
+				if (i < freeParticlesArray.length) {
+					attractor.currentParticlesArray.push(freeParticlesArray[i]);
+					freeParticlesArray.splice(i,1);
+				}
+			
+				// If we're using ring-style movement, figure out which particles belong in which rings
+				if (ATTRACTOR_MOTION_STYLE == 'ring') {
+					// Check if new rings need to be added
+					maxCapacity = 0;
+					for(i=0;i<attractor.ringRotationsArray.length;i++) {
+						maxCapacity += RING_COUNTS[i];
+					}
+					if (attractor.currentParticlesArray.length>maxCapacity) {
+						// If so, add a new ring
+						attractor.ringRotationsArray.push(0);
+						attractor.ringSpeedsArray.push(MAX_RING_SPEED);			
+					} else {
+						// Otherwise, figure out which ring was added to and increase its speed					
+						currentParticles = attractor.currentParticlesArray.length;
+						currentRing = 0;
+						while (currentParticles > RING_COUNTS[currentRing]) {
+							currentParticles-=RING_COUNTS[currentRing];
+							currentRing++;
+						}
+						attractor.ringSpeedsArray[currentRing] = MAX_RING_SPEED;
+					}
+				}				
+			} // If there are no free Particles, don't do anything (for now - maybe steal from other Attractors later?)					
+		} else if (attractor.currentParticlesArray.length > attractor.desiredParticles) {
+		// If Attractor has more than desired number of Particles, lose the newest one
+			freeParticlesArray.push(attractor.currentParticlesArray.pop());
+		}					
+		
+		// Update Attractor's ring speeds and rotations
+		for(i=0;i<attractor.ringRotationsArray.length;i++) {
+			if (attractor.ringSpeedsArray[i]>0) {
+				attractor.ringSpeedsArray[i] -= RING_SPEED_FRICTION;
+			}
+			if (attractor.ringSpeedsArray[i]<0) {
+				attractor.ringSpeedsArray[i] = 0;
+			}
+			attractor.ringRotationsArray[i] += attractor.ringSpeedsArray[i];
+			if (attractor.ringRotationsArray[i]>360) {
+				attractor.ringRotationsArray[i] -= 360;
+			}
+		}
+		
+		// Move and draw this Attractor's Particles
+		particleIndex=1;
+		attractor.currentParticlesArray.forEach(function(particle) {
+		
+			if (ATTRACTOR_MOTION_STYLE=='ring') {
+			
+				// Figure out which ring the particle is in; currentParticles will give position in that ring
+				currentRing=0;
+				currentParticles = particleIndex;
+				while (currentParticles > RING_COUNTS[currentRing]) {
+					currentParticles-=RING_COUNTS[currentRing];
+					currentRing++;
+				}
+				
+				// Calculate rotation in radians
+				currentRotation = (currentParticles/RING_COUNTS[currentRing] + attractor.ringRotationsArray[currentRing]/360)*2*Math.PI;
+								
+				// Calculate the particle's ring's radius
+				radius = RING_RADIUS_START + RING_RADIUS_INCREMENT*(currentRing+1);
+								
+				// Calculate destination vector
+				x=attractor.positionVector.x + Math.cos(currentRotation)*radius;
+				y=attractor.positionVector.y + Math.sin(currentRotation)*radius;
+				destinationVector = new Vector(x,y);
+
+				// If particle is close enough to destination, just set its position equal to it
+				if (particle.positionVector.subtract(destinationVector).magnitude() < SNAP_THRESHOLD) {
+					particle.velocityVector.x=0;
+					particle.velocityVector.y=0;
+					particle.positionVector = destinationVector;
+				} else {
+					// Otherwise, move particle towards calculated destination using ring attraction force
+					moveParticle(particle,destinationVector,RING_ATTRACTION_FORCE);
+				}
+			} else if (ATTRACTOR_MOTION_STYLE=='point'){
+				repulsionVector = particle.positionVector.subtract(attractor.positionVector);
+				distance = repulsionVector.magnitude();
+				inverseSquareMagnitude = 1;
+
+				if (ATTRACTOR_FORCE_INVERSE_SQUARE) {
+					// Scale attractor force by inverse square of distance.
+					inverseSquareMagnitude = 1/(distance*distance);
+					// Cap inverse square of distance to a certain amount, otherwise it can get to infinity.
+					if (inverseSquareMagnitude > INVERSE_SQUARE_MAGNITUDE_MAX) {
+						inverseSquareMagnitude = INVERSE_SQUARE_MAGNITUDE_MAX;
+					}
+					
+					// Scale attractor force by how many particles it has.
+					//inverseSquareMagnitude *= Math.sqrt(attractor.currentParticlesArray.length);
+					inverseSquareMagnitude *= attractor.currentParticlesArray.length/2;
+					if (distance < ATTRACTOR_FORCE_INVERSE_SQUARE_NULL_RADIUS*attractor.radius()) {
+						inverseSquareMagnitude = 0;
+					}
+				}			
+				
+ 
+				if (repulsionVector.magnitude() < attractor.radius()*1) { 		 // check if particle is within attractor's radius (2 works well with 0.4 trajectory and linear scaling
+					// Cap maximum force that can be applied inside radius
+					// Scale cap by how many particles the attractor has
+					//maxScaled = Math.sqrt(attractor.currentParticlesArray.length)*ATTRACTOR_FORCE_INVERSE_SQUARE_MAX/attractor.currentParticlesArray.length;
+					//maxScaled = ATTRACTOR_FORCE_INVERSE_SQUARE_MAX*attractor.currentParticlesArray.length;
+					maxScaled = Math.sqrt(attractor.currentParticlesArray.length)*ATTRACTOR_FORCE_INVERSE_SQUARE_MAX;
+					if (inverseSquareMagnitude*ATTRACTOR_FORCE > maxScaled) {
+						inverseSquareMagnitude = maxScaled / ATTRACTOR_FORCE;
+					}
+				
+				
+					// Offset destination so that particle doesn't go directly towards attractor
+					trajectoryVector = attractor.positionVector.subtract(particle.positionVector);
+					trajectoryScale=0.4;
+					if (particle.persistentRandom < 0.5) {
+						trajectoryScale*=-1;
+					}
+					if (particle.persistentRandom < 0.1) {
+						trajectoryScale=0;
+					}
+					trajectoryScale = particle.persistentRandom;
+					if (particle.persistentRandom > 0.5) {
+						trajectoryScale/=-2;
+					}
+					// Scale trajectory vectory by the number of particles that the attractor has
+					//trajectoryScale = attractor.currentParticlesArray.length/100*Math.random();
+					//trajectoryScale = 0.2+0.2*Math.random();
+					trajectoryVector = trajectoryVector.times(trajectoryScale);
+					offsetDestinationVector = new Vector(attractor.positionVector.x-trajectoryVector.y,attractor.positionVector.y+trajectoryVector.x);
+
+					// Push particles away harder the closer they are to the center of the attractor, up to ATTRACTOR_REPULSION_MAX
+					repulsionForce=ATTRACTOR_REPULSION_MAX*(1-repulsionVector.magnitude()/attractor.radius());
+					if (ATTRACTOR_RADIUS_FRICTION_FREE) { // if attractor radius is friction free, don't apply friction to particle velocity
+						moveParticleNoFriction(particle,offsetDestinationVector,ATTRACTOR_FORCE*inverseSquareMagnitude);
+						//moveParticleNoFriction(particle,particle.positionVector.add(repulsionVector),repulsionForce);					
+					} else {
+						moveParticle(particle,offsetDestinationVector,ATTRACTOR_FORCE*inverseSquareMagnitude);
+						//moveParticle(particle,particle.positionVector.add(repulsionVector),repulsionForce);					
+					}
+				} else {
+					// Ensure minimum force that can be applied outside radius
+					if (inverseSquareMagnitude*ATTRACTOR_FORCE < ATTRACTOR_FORCE_INVERSE_SQUARE_MIN) {
+						inverseSquareMagnitude = ATTRACTOR_FORCE_INVERSE_SQUARE_MIN / ATTRACTOR_FORCE;
+					}
+					// Add some randomness to the particle's destination, within attractor radius
+					var radius = attractor.radius();
+					var randomX = Math.random()*radius*2 - radius;
+					var randomY = Math.random()*radius*2 - radius;
+					var randomAttractorPosition = new Vector(randomX,randomY).add(attractor.positionVector);
+					moveParticle(particle,randomAttractorPosition,ATTRACTOR_FORCE*inverseSquareMagnitude);
+					//moveParticle(particle,offsetDestinationVector,ATTRACTOR_FORCE*inverseSquareMagnitude);
+					//moveParticle(particle,attractor.positionVector,ATTRACTOR_FORCE*inverseSquareMagnitude);
+				}
+			}
+
+			
+			// Finally, draw particle
+			drawParticle(particle,attractor.particleSprite,attractor.color1,attractor.color2);
+			particleIndex++;
+			totalOwnedParticles+=attractor.currentParticlesArray.length;				
+		});
+		
+	}
+	
+	// Draws each Attractor's icon and text.	
+	function drawAttractors() {
+		context.save();
+		for (var i=0;i<attractorsArray.length;i++) {		
+			attractor = attractorsArray[i];
+
+			// Draw the attractor's icon and text
+			if (ATTRACTOR_ICONS_AND_TEXT) {
+				context.globalCompositeOperation='source-over';
+				if (attractor.icon) {
+					context.drawImage(attractor.icon,attractor.positionVector.x-16, attractor.positionVector.y-16, 32,32);
+				}
+				context.fillStyle='rgba(255,255,255,1)';
+				context.fillText(attractor.name,attractor.positionVector.x-5*attractor.name.length/2, attractor.positionVector.y+32);
+			}
+			
+			// Draw a circle showing how much area the attractor should take up.
+			if (ATTRACTOR_CIRCLES) {
+				context.strokeStyle=darkenColor(attractor.color2,2);
+				context.beginPath();
+				context.arc(attractor.positionVector.x,attractor.positionVector.y, attractor.radius(), 0, 2*Math.PI, true);
+				context.stroke();
+			}
+			
+		}
+		context.restore();
+	}
+	
+	function ringCount(attractor){
+		var currentParticles = attractor.currentParticlesArray.length;
+		var currentRing = 0;
+		while (currentParticles > RING_COUNTS[currentRing]) {
+			currentParticles-=RING_COUNTS[currentRing];
+			currentRing++;
+		}
+		return currentRing;
+	}
+	
+	function updateCounts(){
+		document.getElementById('particleNumber').innerHTML = totalOwnedParticles+freeParticlesArray.length;
+	}
+	
+	// Generate particle sprite using four input colors
+	function generateSprite(color1,color2,color3,color4) {
+		var newCanvas = document.createElement( 'canvas' );
+		newCanvas.width = PARTICLE_SIZE;
+		newCanvas.height = PARTICLE_SIZE;
+		newCanvas.loaded = true;
+
+		newContext = newCanvas.getContext('2d');
+		var gradient = newContext.createRadialGradient( PARTICLE_SIZE / 2, PARTICLE_SIZE / 2, 0, PARTICLE_SIZE / 2, PARTICLE_SIZE / 2, PARTICLE_SIZE / 2 );
+		gradient.addColorStop( 0, color1 );
+		gradient.addColorStop( SPRITE_GRADIENT_STOP_1, color2 );
+		gradient.addColorStop( SPRITE_GRADIENT_STOP_2, color3 );
+		gradient.addColorStop( 1, color4 );
+
+		newContext.fillStyle = gradient;
+		newContext.fillRect( 0, 0, PARTICLE_SIZE, PARTICLE_SIZE );
+		return newCanvas;
+	}
+	
+	// Turn a span into an input box when it's clicked
+	// Fill it with the appropriate value and select everything inside it
+	function spanClicked(span,inputSize) {
+		span.removeAttribute('onclick'); // temporarily remove onclick functionality to prevent double clicking
+		document.body.onkeydown=''; // temporarily remove arrow functionality to prevent year changing while in text box
+		value = span.innerHTML;
+		value = value.replace(/,/,""); // remove commas
+		span.innerHTML='<input size='+inputSize+' value='+value+' onblur=\'inputBoxDone(this,'+inputSize+');\' onkeypress=\'return numbersOnly(this,event);\'></input>';
+		span.lastChild.select();
+		span.lastChild.focus();
+	}
+	
+	// Turn an input box back into a span when it loses focus
+	// Check input values for validity
+	// Submit new values and query server using API
+	function inputBoxDone(inputBox,size) {
+		span=inputBox.parentNode;
+		span.setAttribute('onclick','spanClicked(this,'+size+');'); // add back onclick functionality
+		document.body.onkeydown=keyDown; // add back arrow functionality
+		inputValue=parseInt(inputBox.value);
+		if (span.id=='currentYearSpan') {
+			if (!(1984 <= inputValue && inputValue <=2015)) {
+				inputValue=2011;
+			}
+			params['year']=inputValue;
+		} else if (span.id=='incomeSpan') {
+			if (!(inputValue > 0)) {
+				inputValue=40000;
+			}
+			params['income']=inputValue;
+			inputValue=addCommas(inputValue);
+		//} else if (span.id=='particleNumber') {			
+		//	NUM_PARTICLES=inputBox.value;
+		} else if (span.id=='dollarsPerParticle') {
+			if (!(inputValue > 0)) {
+				inputValue = 10;
+			}
+			DOLLARS_PER_PARTICLE=inputValue;
+		}
+		span.innerHTML=inputValue;
+		document.getElementById('yearSlider').value=inputValue;
+		getData();
+	}
+	
+	// Check keypresses while inside inputBoxes, only allow numbers
+	function numbersOnly(inputBox,e) {
+		var keynum;
+		if(window.event) // IE
+		{
+			keynum = e.keyCode;
+		}
+		else if(e.which) // Netscape/Firefox/Opera
+		{
+			keynum = e.which;
+		}
+		if (keynum==13){  // If enter key is pressed, make it lose focus
+			inputBox.blur();
+			return false;
+		} else if (keynum < 48 || 57 < keynum) { // Only allow numbers to be entered
+			return false;
+		} else {
+		}
+	}
+	
+	// Detect and respond to keydown events for the page in general
+	function keyDown(e) {
+		var keynum;
+		if(window.event) // IE
+		{
+			keynum = e.keyCode;
+		}
+		else if(e.which) // Netscape/Firefox/Opera
+		{
+			keynum = e.which;
+		}
+		switch (parseInt(keynum)) {
+			case 37: // left arrow
+				changeYear(-1);
+				break;
+			case 38: // up arrow				
+				break;
+			case 39: // right arrow
+				changeYear(1);
+				break;
+			case 40: // down arrow
+				break;
+		}
+	}
+	
+	function changeYear(num) {		
+		newYear = parseInt(params.year)+num;
+		//alert(params.year+','+newYear);
+		if (1984<=newYear&&newYear<=2015 && newYear!=params.year) {
+			params.year=newYear;
+			getData();
+		}
+	}
+	
+	// Functions for querying the API.
+	
+	// Queries server for data using the values in params.
+	function getData() {
+		var base = "http://www.whatwepayfor.com/api/";
+		
+		var type  = "getBudgetAggregate/";
+		
+		var call = "?year=" + params.year +
+				   "&type=" + params.type +
+				   "&sortdir=" + (params.sortdir * 1) +
+				   "&income=" + params.income +
+				   "&filing=" + params.filing +
+				   "&group=" + params.group[2]+
+				   "&showChange=" + (params.showChange * 1) +
+				   "&showExtra="  + (params.showExtra * 1);
+		
+		var api  = base + type + call;
+		
+		Ajax.get(api, success)
+	}
+	
+	var success = function(data) {
+		
+		var xml = data;
+		if(typeof data == 'string') {
+			xml = stringToXml(data);
+		}
+		var items = xml.getElementsByTagName('item');
+		
+		updateDisplay(items);
+		
+		//document.body.removeChild(loading);
+	};
+	
+	// Updates data underlying display
+	var budgetAreaCounts;
+	function updateDisplay(data){
+	
+		// Update interface input elements.
+		document.getElementById('dollarsPerParticle').innerHTML = DOLLARS_PER_PARTICLE;
+		document.getElementById('yearSlider').value = params.year;
+		document.getElementById('yearInput').value = params.year;
+		document.getElementById('incomeInput').value = params.income;		
+
+		totalTax = 0;
+		updatedAttractors = []; // keep a list of which attractors have been updated for later
+		var count = 0;
+		for (var i=0;i<data.length;i++) {
+			count++;
+			budgetAreaCounts = data.length;
+			var item = data[i];
+
+			itemName = item.getAttribute('dimensionName');
+			itemMyCost = parseFloat(item.getAttribute('mycosti'));
+			itemFunctionId = item.getAttribute('dimensionID');
+			var currentAttractor = false;
+			currentAttractor = findAttractor(itemName); // if current Attractor exists, return it
+			if (!currentAttractor) {
+				currentAttractor = generateAttractor(itemName); // if there's no Attractor for this item yet, make one and return it
+			}
+			if (itemMyCost<0) {
+				currentAttractor.desiredParticles = 0; // clamp negative numbers at 0 for now
+			} else {
+				currentAttractor.desiredParticles = Math.floor(itemMyCost/DOLLARS_PER_PARTICLE); // update attractor's desired number of particles
+				totalTax += itemMyCost; // keep running total of tax paid
+			}
+			currentAttractor.functionId = itemFunctionId;
+			currentAttractor.functionMyCost = itemMyCost;
+			updatedAttractors.push(currentAttractor.name);
+		}
+		//alert(count+' '+data.length);
+
+		// Update total tax paid
+		document.getElementById('totalTaxSpan').innerHTML = addCommas(totalTax.toFixed(2));
+		//alert(addCommas(totalTax.toFixed(2)));
+
+		
+		// If any attractors weren't updated, remove them from the list of attractors
+		for (var i=0;i<attractorsArray.length;i++) {
+			attractor = attractorsArray[i];
+			attractorUpdated = false;
+			for(var j=0;j<updatedAttractors.length;j++) {
+				if (attractor.name==updatedAttractors[j]) {
+					attractorUpdated = true;				
+					continue;
+				}
+			}
+			if (!attractorUpdated) {
+				for (var k=0;k<attractor.currentParticlesArray.length;k++) { // free all particles that belong to attractor
+					freeParticlesArray.push(attractor.currentParticlesArray.pop());
+				}
+				attractorsArray.splice(i,1); // remove from list of attractors
+				//alert('removing '+attractor.name);
+			}
+		}
+		
+		// Clear screen and draw attractor icon and text, only once every time new data is loaded
+		if (UPDATE_CLEAR_STYLE == 'clear') {
+			context.clearRect(0,0,canvas.width,canvas.height);
+		} else if (UPDATE_CLEAR_STYLE == 'fade') {
+			context.save();
+			context.fillStyle='rgba(0,0,0,'+UPDATE_CLEAR_FADE_OPACITY+')';
+			context.fillRect(0,0,canvas.width,canvas.height);
+			context.restore();
+		}
+		if (ATTRACTOR_ICONS_AND_TEXT) {
+			drawAttractors();
+		}
+		if (ATTRACTOR_LEGEND) {
+			updateAttractorLegend();
+		}	
+		// Get account level data and populate hidden divs for mouseovers
+		for (var i = 0;i < attractorsArray.length; i++) {
+			getAccountData(attractorsArray[i].functionId);
+		}
+		// Show the info text
+		/*
+		infoText = document.getElementsByTagName('h1');
+		for (i in infoText) {
+			infoText[i].style.display='block';
+		}
+		*/
+	}
+	
+	function getAccountData(functionId) {
+	
+		var base = "http://www.whatwepayfor.com/api/";
+		
+		var type  = "getBudgetAccount/";
+		
+		var call = "?year=" + params.year +
+				   "&function=" + functionId +
+				   "&income=" + params.income +
+				   "&filing=" + params.filing +
+				   "&selfEmployed=" + params.selfEmployed;
+		
+		var api  = base + type + call;
+		
+		Ajax.get(api, accountSuccess);
+	}
+	
+	var accountSuccess = function(data) {
+		
+		var xml = data;
+		if(typeof data == 'string') {
+			xml = stringToXml(data);
+		}
+		var items = xml.getElementsByTagName('item');
+		
+		// Check if a div already exists for this function. If not, create one.
+		if (items[0]) {
+			var itemFunctionId = items[0].getAttribute('functionID');
+			var hoverDiv = document.getElementById('hoverDiv'+itemFunctionId);
+			if (!hoverDiv) {
+				// hoverDiv for this function doesn't exist yet, create it				
+				hoverDiv = document.createElement();
+				hoverDiv.className = "hoverDiv";
+				hoverDiv.id = "hoverDiv"+itemFunctionId;
+				hoverDiv.setAttribute("onmouseover","unHighlightAttractor();");
+				//hoverDiv.setAttribute("onmouseover","alert('yargh');");
+			}
+
+			// Add header row.
+			var attractor = false;
+			for (var i = 0;i < attractorsArray.length; i++) {
+				if (attractorsArray[i].functionId == itemFunctionId) {
+					attractor = attractorsArray[i];
+				}
+			}
+			if (!attractor) {
+				alert("No attractor found with function ID: "+itemFunctionId);
+			}
+			
+			var text = "<table><tr><th>"+attractor.name+"</th><th>$"+attractor.functionMyCost+"</th></tr>";
+			//text = attractor.color1 + text; // Add color tag to mouseovers
+			
+			// Populate div with account level info.
+			for (var i = 0; i < items.length && i < 5; i++) {
+				var item = items[i];
+				// Populate div with data.
+				text += "<tr><td>"+item.getAttribute("account")+"</td><td>$"+item.getAttribute("mycosti")+"</td></tr>";
+			}
+			text += "</table>";
+			hoverDiv.innerHTML = text;
+			document.body.appendChild(hoverDiv);
+		}
+	};
+	
+	// Hide an element.
+	function hide(element) {
+		//element.style.zIndex=-1;
+		element.style.display="none";
+		
+	}
+	
+	// Updates the attractor legend.
+	function updateAttractorLegend() {
+		var legendText='<br />';
+		for (var i = 0; i < attractorsArray.length; i++){
+			attractor = attractorsArray[i];
+			//legendText += '<canvas id=\'legend'+i+'\' width=16 height=16></canvas><span style=\'color:'+attractor.color1+'\'>'+attractor.name+'</span><br />';
+			//legendText += '<span onmouseover=\'legendMouseOver('+i+');\' onmouseout=\'legendMouseOut();\'><canvas id=\'legend'+i+'\' width='+24+' height='+24+'></canvas>'+attractor.name+'</span><br />';
+			legendText += '<span class="legendEntry" id=\'legendEntry'+i+'\' onmouseover=\'legendMouseOver('+i+');\' style=\'width:100%;\'><canvas id=\'legend'+i+'\' width='+24+' height='+24+'></canvas><span class="legendText">'+attractor.name+'</span></span><br />';
+		}
+	
+		legend = document.getElementById('legend');
+		legend.innerHTML = legendText;
+		
+		for (var i = 0; i < attractorsArray.length; i++){
+			attractor = attractorsArray[i];
+			var legendContext=document.getElementById('legend'+i).getContext('2d');
+			legendContext.globalCompositeOperation='lighter';
+			legendContext.drawImage(attractor.particleSprite, -4, -4, PARTICLE_SIZE*2, PARTICLE_SIZE*2);
+			legendContext.drawImage(attractor.particleSprite, -4, -4, PARTICLE_SIZE*2, PARTICLE_SIZE*2);
+			legendContext.drawImage(attractor.particleSprite, -4, -4, PARTICLE_SIZE*2, PARTICLE_SIZE*2);
+			legendContext.drawImage(attractor.particleSprite, -4, -4, PARTICLE_SIZE*2, PARTICLE_SIZE*2);
+		}
+	}
+	
+	function legendMouseOver(attractorIndex) {
+		highlightedAttractor = attractorIndex;
+		highlightLegendEntry(attractorIndex);
+	}
+	
+	function legendMouseOut() {
+		unHighlightAttractor();		
+	}	
+	
+	function highlightAttractor() {
+		// Create an offscreen buffer and fill it with a semitransparent black.
+		newCanvas = document.createElement("canvas");
+		newCanvas.width=WIDTH;
+		newCanvas.height=WIDTH;
+		newContext = newCanvas.getContext("2d");
+		newContext.fillStyle = 'rgba(0,0,0,'+UNHIGHLIGHTED_FADE_OPACITY+')';
+		//newContext.fillStyle = 'rgba(255,255,255,1)';
+		newContext.fillRect(0,0,WIDTH,HEIGHT);
+
+		// Calculate position of circle that won't be darkened based on highlightedAttractor.
+		attractor = attractorsArray[highlightedAttractor];
+		var x = attractor.positionVector.x;
+		var y = attractor.positionVector.y;
+		var radius = attractor.radius();
+
+		newContext.globalCompositeOperation='destination-out';
+		// Delete that circle and a radius around it from the darkening rectangle.
+		var totalRadius = radius+HIGHLIGHT_GRADIENT_RADIUS;
+		newContext.fillStyle='rgba(0,0,0,1)';
+		newContext.beginPath();
+		newContext.arc(x,y,totalRadius,0,Math.PI*2,true);
+		newContext.fill();
+		
+		// Draw circle at normal fade opacity, and add a radial gradient outwards from the circle.
+		newContext.globalCompositeOperation='source-over';		
+		newGradient = newContext.createRadialGradient(x,y,0,x,y,totalRadius);
+		newGradient.addColorStop(0,'rgba(0,0,0,'+FRAME_CLEAR_FADE_OPACITY+')');
+		newGradient.addColorStop(radius/totalRadius,'rgba(0,0,0,'+FRAME_CLEAR_FADE_OPACITY+')');
+		//newGradient.addColorStop(radius/(radius*2+HIGHLIGHT_GRADIENT_RADIUS),'rgba(0,0,0,'+FRAME_CLEAR_FADE_OPACITY+')');
+		//newGradient.addColorStop(radius*2/(radius*2+HIGHLIGHT_GRADIENT_RADIUS),'rgba(0,0,0,'+FRAME_CLEAR_FADE_OPACITY+')');
+		newGradient.addColorStop(1,'rgba(0,0,0,'+UNHIGHLIGHTED_FADE_OPACITY+')');
+		newContext.fillStyle=newGradient;
+		newContext.beginPath();
+		newContext.arc(x,y,totalRadius,0,Math.PI*2,true);
+		newContext.fill();		
+		
+		// Apply darkening rectangle to main context.
+		context.save();
+		//context.globalCompositeOperation="darker";
+		context.globalCompositeOperation="source-over";
+		context.drawImage(newCanvas,0,0);
+		context.restore();
+		
+		// Show tooltip if over an attractor
+		if (overAttractor) {
+			hoverDiv = document.getElementById("hoverDiv"+attractor.functionId);
+			if (hoverDiv) {
+				hoverDiv.style.display = "block";
+				//hoverDiv.style.display = "2";
+				hoverDiv.style.left = mouseX+10+"px";
+				hoverDiv.style.top = mouseY+10+"px";
+				//alert("Moving to "+posx+","+posy);
+			}
+		}
+	}	
+	
+	function unHighlightAttractor() {
+		attractor = attractorsArray[highlightedAttractor];
+		if (attractor) {
+			hoverDiv = document.getElementById("hoverDiv"+attractor.functionId);
+			hoverDiv.style.display="none";
+		}
+		highlightedAttractor="none";
+		for (var i = 0;i < attractorsArray.length;i++) {
+			legendEntry = document.getElementById('legendEntry'+i);
+			legendEntry.style.opacity="1";
+		}
+	}
+	
+	// Adds commas to numbers to denote groups of three digits.
+	function addCommas(nStr)
+	{
+		nStr += '';
+		var x = nStr.split('.');
+		x1 = x[0];
+		x2 = x.length > 1 ? '.' + x[1] : '';
+		var rgx = /(\d+)(\d{3})/;
+		while (rgx.test(x1)) {
+			x1 = x1.replace(rgx, '$1' + ',' + '$2');
+		}
+		return x1 + x2;
+	}
+	
+	// Searches for an attractor by name and returns it, false if it doesn't exist
+	function findAttractor(name) {
+		for (i=0;i<attractorsArray.length;i++) {
+			attractor = attractorsArray[i];
+			if (attractor.name==name) {
+				return attractor;
+			}
+		}
+		return false;
+	}
+	
+	// Reports mouse position if it's over the main canvas, used to highlight Attractors
+	// Can use to move Attractors?
+	var mouseX;
+	var mouseY;	
+	var overAttractor;
+	function mainCanvasMouseMove(e) {		
+		var posx = 0;
+		var posy = 0;
+		if (!e) var e = window.event;
+		if (e.pageX || e.pageY) 	{
+			posx = e.pageX;
+			posy = e.pageY;
+		}
+		else if (e.clientX || e.clientY) 	{
+			posx = e.clientX + document.body.scrollLeft
+				+ document.documentElement.scrollLeft;
+			posy = e.clientY + document.body.scrollTop
+				+ document.documentElement.scrollTop;
+		}
+		// posx and posy contain the mouse position relative to the document    	
+		mouseX = posx;
+		mouseY = posy;
+		// subtract canvas offsets to make them relative to the canvas
+		posx -= canvas.offsetLeft;
+		posy -= canvas.offsetTop;
+		
+		// Test attractors to see if mouse is over one, and if so, highlight it
+		mousePositionVector = new Vector(posx,posy);
+		overAttractor = false;
+		for (var i=0; i < attractorsArray.length; i++) {		
+			attractor = attractorsArray[i];
+			if (mousePositionVector.subtract(attractor.positionVector).magnitude() <= attractor.radius()) {
+				//alert(i+','+attractor.radius()+'\n'+posx+','+posy+'\n'+attractor.positionVector.x+','+attractor.positionVector.y);
+				if (highlightedAttractor != "none") {
+					unHighlightAttractor();
+				}
+				highlightedAttractor = i;
+				overAttractor = true;
+				highlightLegendEntry(i);
+			}
+		}
+		if (!overAttractor) {
+			if (highlightedAttractor != 'none') {
+				unHighlightAttractor();
+			}			
+		}	
+	}
+	
+	function highlightLegendEntry(highlightNum) {
+		for (var i = 0; i < attractorsArray.length; i++) {
+			if (i != highlightNum) {
+				document.getElementById('legendEntry'+i).style.opacity = "0.4";
+			} else {
+				document.getElementById('legendEntry'+i).style.opacity = "1";
+				attractor = attractorsArray[i];
+				hoverDiv=document.getElementById("hoverDiv"+attractor.functionId);
+				hoverDiv.style.left = attractor.positionVector.x;
+				hoverDiv.style.top = attractor.positionVector.y;
+			}			
+		}
+	}
+	
+	function mainCanvasMouseOut() {
+		unHighlightAttractor();
+		overAttractor=false;
+	}
+	
+	function incomeFocused(input) {
+		document.body.onkeydown=""; // temporarily remove arrow key functionality while inside input box
+	}
+	function incomeBlur(income) {
+		document.body.onkeydown=keyDown; // add back arrow key functionality
+		incomeInputChanged(income);
+	}
+	function incomeInputChanged(income) {
+		if (income != params['income']) {
+			params['income'] = income;
+			getData();
+		}
+	}
+
+	function yearFocused(input) {
+		document.body.onkeydown=""; // temporarily remove arrow key functionality while inside input box
+	}	
+	function yearBlur(year) {
+		document.body.onkeydown=keyDown; // add back arrow key functionality
+		// Sanitize input data
+		if (year < 1984) {
+			year = 1984;		
+		}
+		if (year > 2015) {
+			year = 2015;
+		}
+		yearInputChanged(year);
+	}
+	function yearInputChanged(year) {
+		if (year != params['year']) {
+			params['year'] = year;
+			getData();
+		}
+	}
+	
+	function yearSliderEnableOnChange(slider) {
+		slider.setAttribute("onchange", "yearSliderChanged(this.value);");
+	}
+	function yearSliderDisableOnChange(slider) {
+		slider.onchange='';
+		//document.body.onkeydown=keyDown; // add back arrow key functionality
+		params["year"] = yearInput.value;
+		getData();
+
+	}
+	function yearSliderChanged(year) {
+		yearInput.value=year;
+		//document.getElementById('yearSlider').value;
+		
+	}
+	
+	//+ Jonas Raoni Soares Silva
+	//@ http://jsfromhell.com/array/shuffle [v1.0]
+	shuffle = function(o){ //v1.0
+		for(var j, x, i = o.length; i; j = parseInt(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
+		return o;
+	};	
+	
+	</script>
+	<style>
+		body {
+			background-color:black;
+			font-family: 'PT Sans', Helvetica, Arial, sans-serif;
+			color:darkgray;
+			margin:0;
+		}
+		.infoDiv {
+			background-color:#121212;
+			padding: 5px;
+		}
+		p {
+			margin:10px;
+			font-size:24pt;
+		}
+		.bottomDiv p {
+			font-size:18pt;
+		}
+		span { color:white; }
+		.clickable {
+			color: #00b0d8;
+			cursor: pointer;
+		}
+		.clickable:hover {
+			text-decoration:underline;
+		}
+		input {
+			margin:0;
+			background-color:black; 
+			color: #00b0d8; 
+			font-size:24pt;
+			font-weight:bolder;
+			border:1px solid gray;		
+			text-align:center;
+			font-family: 'PT Sans', Helvetica, Arial, sans-serif;
+		}
+		#yearSlider {
+			width:280px;
+			margin-left: 10px;
+		}
+		#theCanvas {		
+			z-index:2;
+			float:left;
+		}
+		#legend canvas{
+			margin-right:5px;
+		}
+		.legendEntry {
+			z-index:1;
+		}
+		.legendText {
+			font-size:14px;
+			color:silver;
+			vertical-align:5px;
+		}
+		.hoverDiv {
+			position:absolute;
+			z-index:3;
+			display:none;
+			color:white;
+			background-color:black;
+			opacity:0.6;
+			text-align:left;
+		}
+		.hoverDiv th {
+			font-size:16pt;
+		}
+		.hoverDiv:hover {
+		}
+		.infoDiv img {
+			float:right;
+			margin-right:10px;
+			margin-top:10px;
+			border:0;
+		}
+		#bottomText{
+			margin-left:15px;
+		}
+		a {
+			color:white;
+		}
+	</style>
+</head>
+<body onload="init();" onkeydown="return keyDown(event);">
+	<div class="infoDiv">
+		<a href="http://vidi.cs.ucdavis.edu"><img src="vidilogo.png"></a>
+		<p>Your income: <strong>$<input id="incomeInput" onfocus="incomeFocused(this);" onblur="incomeBlur(this.value);" onmouseup="incomeInputChanged(this.value);" onkeypress="return numbersOnly(this,event);" type="number" min="0" max="10000000" step="1000" size="9"></strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Year: <strong><input id="yearInput" onfocus="yearFocused(this);" onblur="yearBlur(this.value);" onkeypress="return numbersOnly(this,event);" type="text" size="4"></span><input id="yearSlider" onmousedown="yearSliderEnableOnChange(this);" onmouseup="yearSliderDisableOnChange(this);" type="range" min="1984" max="2015" step="1"/></strong></p>
+		<p>Your income tax: <strong>$<span id="totalTaxSpan"></span></strong></p>
+	</div>	
+	<canvas id="theCanvas" onmousemove="mainCanvasMouseMove();" onmouseout="mainCanvasMouseOut();"></canvas>
+	<span id="legend" onmouseout="legendMouseOut();"></span>
+	<div style='clear:both' class="infoDiv bottomDiv">
+		<p>Each particle represents $<strong><span id="dollarsPerParticle" class="clickable" onclick='spanClicked(this,2);'></span></strong>. Currently, there are <strong><span id="particleNumber" onclick='//spanClicked(this,2);'></span></strong> particles.</p>
+		<p>Click on <strong><span style="color:#00b0d8;">blue</span></strong> values to change them. Left and right arrow keys change years.</p>	
+	</div>	
+	<div id="bottomText">
+		<h2>What's going on here?</h2>
+		<ul>
+			<li>Glowing particles represent your income tax.</li>
+			<li>Colored circles represent budget functions that the government spent your income tax on.</li>
+			<li>Budget functions attract and capture tax particles.</li>
+			<li>When they are captured, tax particles change color to match the function that they're getting spent on, and eventually settle into stable orbits around them.</li>
+			<li>The area of circles and orbits around budget functions are proportional to the amount of money allocated to them.</li>
+		</ul>
+		<h2>Things to try:</h2>
+		<ul>
+			<li>Use the arrow keys to flip between 2010 and 2009. What's the most noticeable change between those two years?</li>
+			<li>Starting from 2010, move the year slider all the way to the left. What's the biggest difference you see between now and then? What possible explanations can you think of for this?</li>
+			<li>Starting from 1984, use the right arrow key to advance through time. How does the total amount of income tax paid vary through the years? Why might this be?</li>
+		</ul>
+		<h2>About this visualization:</h2>
+		<ul>
+			<li>Created entirely in HTML and Javascript, using &#060;canvas&#062; and a few other HTML5 elements.</li>
+			<li>Runs best in <a href="http://google.com/chrome">Chrome</a>.
+			<li>Made for a <a href="http://www.datavizchallenge.org">data visualization challenge</a>, and uses the data and API provided by <a href="http://whatwepayfor.com">whatwepayfor.com</a>.
+			<li>Designed and implemented by <a href="http://vis.cs.ucdavis.edu/~tanahashi/">Yuzuru Tanahashi</a> and <a href="http://vidi.cs.ucdavis.edu/People/Isaac.php">Isaac Liao</a> in the <a href="http://vidi.cs.ucdavis.edu">ViDi lab</a> at <a href="http://ucdavis.edu">UC Davis</a>.
+		</ul>
+	</div>
+</body>
+</html>
